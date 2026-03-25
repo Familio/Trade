@@ -17,83 +17,83 @@ if file:
     # Filter for only TRADE types
     trade_df = df[df['Type'] == 'TRADE'].copy()
     
-    # 2. Aggregate Data by Date
+    # 2. Advanced Aggregation
+    # We calculate PnL, Total Trades, Wins, and Losses per day
     daily_stats = trade_df.groupby('Date').agg(
         Daily_PnL=('Amount', 'sum'),
-        Trade_Count=('Amount', 'count')
+        Total_Trades=('Amount', 'count'),
+        Wins=('Amount', lambda x: (x > 0).sum()),
+        Losses=('Amount', lambda x: (x <= 0).sum())
     ).reset_index()
     
-    # Convert back to datetime to extract calendar info
     daily_stats['Date_DT'] = pd.to_datetime(daily_stats['Date'])
     daily_stats['Week'] = daily_stats['Date_DT'].dt.isocalendar().week
     daily_stats['Day_Name'] = daily_stats['Date_DT'].dt.day_name()
-    daily_stats['Day_Month'] = daily_stats['Date_DT'].dt.strftime('%b %d') # e.g., "Mar 24"
+    daily_stats['Day_Month'] = daily_stats['Date_DT'].dt.strftime('%b %d')
 
-    # 3. Prepare the Grid
+    # 3. Build the Display Grid
     days_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
-    
-    # Create a mapping for PnL, Count, and the Date Label
-    pnl_map = daily_stats.set_index(['Week', 'Day_Name'])['Daily_PnL'].to_dict()
-    count_map = daily_stats.set_index(['Week', 'Day_Name'])['Trade_Count'].to_dict()
-    date_label_map = daily_stats.set_index(['Week', 'Day_Name'])['Day_Month'].to_dict()
-
-    # Get unique weeks in the data
     weeks = sorted(daily_stats['Week'].unique())
     
-    # Build the display DataFrame
     calendar_data = []
     for week in weeks:
         row = {}
         for day in days_order:
-            key = (week, day)
-            if key in pnl_map:
-                label = date_label_map[key]
-                pnl = pnl_map[key]
-                count = count_map[key]
-                row[day] = f"{label}\n\n€{pnl:,.2f}\n({int(count)} trades)"
+            day_data = daily_stats[(daily_stats['Week'] == week) & (daily_stats['Day_Name'] == day)]
+            
+            if not day_data.empty:
+                d = day_data.iloc[0]
+                # Format: Date | PnL | Total/Win/Loss
+                cell_text = (
+                    f"{d['Day_Month']}\n\n"
+                    f"€{d['Daily_PnL']:,.2f}\n"
+                    f"{int(d['Total_Trades'])} / {int(d['Wins'])}W / {int(d['Losses'])}L"
+                )
+                row[day] = cell_text
             else:
                 row[day] = "-"
         calendar_data.append(row)
 
     display_grid = pd.DataFrame(calendar_data, index=weeks)
 
-    # 4. Styling Logic
+    # 4. Professional Styling
     def style_cells(val):
         if "€" not in str(val):
             return 'background-color: #1e1e1e; color: #444; text-align: center;'
         
-        # Check if profit or loss for color
-        # We look for the minus sign in the string
-        color = '#e74c3c' if "-" in val.split('\n\n')[1] else '#2ecc71'
+        # Color based on PnL (look for the minus sign in the second line)
+        pnl_line = val.split('\n\n')[1].split('\n')[0]
+        color = '#e74c3c' if "-" in pnl_line else '#2ecc71'
         
         return f'''
             background-color: {color}; 
             color: white; 
             font-weight: bold; 
             border: 2px solid #111; 
-            height: 100px; 
+            height: 120px; 
             white-space: pre; 
             text-align: center;
             vertical-align: middle;
         '''
 
-    st.subheader("Monthly Performance & Volume")
-    styled_table = display_grid.style.applymap(style_cells)
-    st.table(styled_table)
+    st.subheader("Monthly Performance & Win/Loss Ratio")
+    st.table(display_grid.style.applymap(style_cells))
 
-    # 5. Professional Metrics Footer
+    # 5. Global Stats Footer
     st.divider()
-    col1, col2, col3, col4 = st.columns(4)
+    m1, m2, m3, m4, m5 = st.columns(5)
     
     total_pnl = trade_df['Amount'].sum()
     total_trades = len(trade_df)
-    win_rate = (trade_df['Amount'] > 0).mean() * 100
-    avg_trades = len(trade_df) / len(daily_stats) if len(daily_stats) > 0 else 0
+    total_wins = (trade_df['Amount'] > 0).sum()
+    total_losses = (trade_df['Amount'] <= 0).sum()
+    win_rate = (total_wins / total_trades * 100) if total_trades > 0 else 0
 
-    col1.metric("Total Net P&L", f"€{total_pnl:,.2f}")
-    col2.metric("Total Trades", total_trades)
-    col3.metric("Avg Trades / Day", f"{avg_trades:.1f}")
-    col4.metric("Win Rate", f"{win_rate:.1f}%")
+    m1.metric("Total Net P&L", f"€{total_pnl:,.2f}")
+    m2.metric("Total Trades", total_trades)
+    m3.metric("Total Wins ✅", total_wins)
+    m4.metric("Total Losses ❌", total_losses)
+    m5.metric("Win Rate %", f"{win_rate:.1f}%")
 
 else:
-    st.info("Drop your Capital.com Activity CSV here to see your calendar.")
+    st.info("Upload your CSV to generate your trading calendar.")
