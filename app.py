@@ -79,4 +79,7 @@ if file:
     col1.metric("Total Net P&L", f"€{total_pnl:,.2f}")
     col2.metric("Total Trades", total_trades)
     col3.metric("Avg Trades / Day", f"{avg_trades_per_day:.1f}")
-    col4.metric("Trade Win Rate", f
+    col4.metric("Trade Win Rate", f"{win_rate:.1f}%")
+
+else:
+    st.info("Please upload your Capital.com Activity CSV.")
